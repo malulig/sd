@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          Int     @id @default(autoincrement())
+  email       String  @unique
+  password    String
+  displayName String?
+  role        String  @default("user")
+
+  sessions Session[]
+  tickets  Ticket[]  @relation("UserTicketsAuthored")
+  assigned Ticket[]  @relation("UserTicketsAssigned") // ← ДОБАВЬ ЭТО
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  Comment   Comment[]
+
+  @@index([email])
+}
+
+model Session {
+  id          String  @id @default(cuid())
+  userId      Int
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Например, хранить refresh-токен (хеш), user-agent, ip и т.д.
+  refreshHash String
+  userAgent   String?
+  ip          String?
+
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model Ticket {
+  id     Int          @id @default(autoincrement())
+  title  String
+  body   String?
+  status TicketStatus @default(OPEN)
+
+  authorId Int
+  author   User @relation("UserTicketsAuthored", fields: [authorId], references: [id])
+
+  assigneeId Int?
+  assignee   User? @relation("UserTicketsAssigned", fields: [assigneeId], references: [id]) // ← ПОПРАВЬ ЭТО
+
+  comments Comment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([authorId])
+  @@index([assigneeId])
+  @@fulltext([title, body])
+}
+
+model Comment {
+  id       Int    @id @default(autoincrement())
+  ticketId Int
+  authorId Int
+  body     String
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+  @@index([authorId])
+}
