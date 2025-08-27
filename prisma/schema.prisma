@@ -14,28 +14,35 @@ model User {
   displayName String?
   role        String  @default("user")
 
+  azureId       String? @unique
+  azureTenantId String?
+  avatarUrl     String?
+
   sessions Session[]
   tickets  Ticket[]  @relation("UserTicketsAuthored")
-  assigned Ticket[]  @relation("UserTicketsAssigned") // ← ДОБАВЬ ЭТО
+  assigned Ticket[]  @relation("UserTicketsAssigned")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   Comment   Comment[]
 
   @@index([email])
+  @@index([azureTenantId])
 }
 
 model Session {
-  id          String  @id @default(cuid())
-  userId      Int
-  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  // Например, хранить refresh-токен (хеш), user-agent, ip и т.д.
+  id     String @id @default(cuid())
+  userId Int
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   refreshHash String
   userAgent   String?
   ip          String?
 
   expiresAt DateTime
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  revokedAt DateTime?
 
   @@index([userId])
   @@index([expiresAt])
