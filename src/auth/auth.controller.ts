@@ -1,16 +1,33 @@
-import { BadRequestException, Body, Controller, Get, Post, Req, Res } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Post,
+  Req,
+  Res,
+} from '@nestjs/common';
 import { Response, Request } from 'express';
 import { AuthService } from './auth.service';
 import { randomBytes, randomUUID } from 'node:crypto';
 import * as bcrypt from 'bcrypt';
-import { Public } from 'src/common/decorators/public.decorator';
+import { Public } from '../common/decorators/public.decorator';
 import { PrismaService } from 'prisma/prisma.service';
-import { AuthUser, RequestUser } from 'src/common/decorators/auth-user.decorator';
-import { AzureMsalService } from 'src/azure/azure-msal.service';
+import {
+  AuthUser,
+  RequestUser,
+} from '../common/decorators/auth-user.decorator';
+import { AzureMsalService } from '../azure/azure-msal.service';
+import { toAppRole } from '../common/helpers/roles';
 
 interface AzureIdTokenClaims {
-  oid?: string; tid?: string; sub?: string; name?: string;
-  email?: string; preferred_username?: string; emails?: string[];
+  oid?: string;
+  tid?: string;
+  sub?: string;
+  name?: string;
+  email?: string;
+  preferred_username?: string;
+  emails?: string[];
 }
 
 class RefreshDto {
@@ -30,10 +47,18 @@ function cookieBase() {
   };
 }
 function setRefreshCookie(res: Response, token: string) {
-  res.cookie('refresh_token', token, { ...cookieBase(), path: '/auth', maxAge: 30 * 24 * 3600 * 1000 });
+  res.cookie('refresh_token', token, {
+    ...cookieBase(),
+    path: '/auth',
+    maxAge: 30 * 24 * 3600 * 1000,
+  });
 }
 function setSidCookie(res: Response, sid: string) {
-  res.cookie('sid', sid, { ...cookieBase(), path: '/auth', maxAge: 30 * 24 * 3600 * 1000 });
+  res.cookie('sid', sid, {
+    ...cookieBase(),
+    path: '/auth',
+    maxAge: 30 * 24 * 3600 * 1000,
+  });
 }
 function setCsrfCookie(res: Response, token: string) {
   res.cookie('csrf_token', token, {
@@ -49,16 +74,28 @@ function clearAuthCookies(res: Response) {
   const base = cookieBase();
   res.cookie('refresh_token', '', { ...base, path: '/auth', maxAge: 0 });
   res.cookie('sid', '', { ...base, path: '/auth', maxAge: 0 });
-  res.cookie('csrf_token', '', { httpOnly: false, secure: base.secure, sameSite: base.sameSite, domain: base.domain, path: '/', maxAge: 0 });
+  res.cookie('csrf_token', '', {
+    httpOnly: false,
+    secure: base.secure,
+    sameSite: base.sameSite,
+    domain: base.domain,
+    path: '/',
+    maxAge: 0,
+  });
 }
 function assertCsrfAndOrigin(req: Request) {
   const csrfCookie = req.cookies?.csrf_token as string | undefined;
-  const csrfHeader = (req.get('x-csrf-token') || req.get('x-xsrf-token')) as string | undefined;
+  const csrfHeader = (req.get('x-csrf-token') || req.get('x-xsrf-token')) as
+    | string
+    | undefined;
   if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {
     throw new BadRequestException('Bad CSRF token');
   }
   const origin = req.get('origin') || '';
-  const allowed = (process.env.CLIENT_URL || '').split(',').map(s => s.trim()).filter(Boolean);
+  const allowed = (process.env.CLIENT_URL || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (origin && allowed.length && !allowed.includes(origin)) {
     throw new BadRequestException('Bad Origin');
   }
@@ -82,7 +119,9 @@ export class AuthController {
   @Public()
   @Get('azure/callback')
   async azureCallback(@Req() req: Request, @Res() res: Response) {
-    const currentUrl = new URL(`${req.protocol}://${req.get('host')}${req.originalUrl}`);
+    const currentUrl = new URL(
+      `${req.protocol}://${req.get('host')}${req.originalUrl}`,
+    );
     const result = await this.msal.exchangeCode(currentUrl);
 
     const claims = (result.idTokenClaims ?? {}) as AzureIdTokenClaims;
@@ -95,6 +134,7 @@ export class AuthController {
       (Array.isArray(claims.emails) ? claims.emails[0] : undefined);
     const displayName = claims.name;
     const azureTenantId = claims.tid;
+    console.log(JSON.stringify(result, null, 2));
 
     const placeholderHash = await bcrypt.hash(randomUUID(), 12);
 
@@ -104,14 +144,21 @@ export class AuthController {
     if (byAzure) {
       user = await this.prisma.user.update({
         where: { id: byAzure.id },
-        data: { displayName: displayName ?? byAzure.displayName, azureTenantId: azureTenantId ?? byAzure.azureTenantId },
+        data: {
+          displayName: displayName ?? byAzure.displayName,
+          azureTenantId: azureTenantId ?? byAzure.azureTenantId,
+        },
       });
     } else if (email) {
       const byEmail = await this.prisma.user.findUnique({ where: { email } });
       if (byEmail) {
         user = await this.prisma.user.update({
           where: { id: byEmail.id },
-          data: { azureId, azureTenantId: azureTenantId ?? byEmail.azureTenantId, displayName: displayName ?? byEmail.displayName },
+          data: {
+            azureId,
+            azureTenantId: azureTenantId ?? byEmail.azureTenantId,
+            displayName: displayName ?? byEmail.displayName,
+          },
         });
       }
     }
@@ -127,14 +174,21 @@ export class AuthController {
         },
       });
     }
+    const jwtUser = {
+      id: user.id,
+      email: user.email,
+      role: toAppRole(user.role),
+    };
 
-    const accessToken = await this.auth.signAccessToken(user);
-    const refreshToken = await this.auth.signRefreshToken(user);
+    const accessToken = await this.auth.signAccessToken(jwtUser);
+    const refreshToken = await this.auth.signRefreshToken(jwtUser);
     const sessionId = await this.auth.createSession(
       user.id,
       refreshToken,
       req.headers['user-agent']?.toString(),
-      (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || undefined,
+      (req.headers['x-forwarded-for'] as string) ||
+        req.socket.remoteAddress ||
+        undefined,
     );
 
     // httpOnly cookies: refresh & sid
@@ -146,7 +200,12 @@ export class AuthController {
 
     return res.json({
       ok: true,
-      user: { id: user.id, email: user.email, role: user.role, displayName: user.displayName },
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        displayName: user.displayName,
+      },
       access_token: accessToken,
       expires_in: 15 * 60,
     });
@@ -159,26 +218,47 @@ export class AuthController {
 
   @Public()
   @Post('refresh')
-  async refresh(@Req() req: Request, @Res() res: Response, @Body() body: RefreshDto) {
+  async refresh(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Body() body: RefreshDto,
+  ) {
     assertCsrfAndOrigin(req);
 
     const sid = req.cookies?.sid as string | undefined;
-    const oldRefresh = (req.cookies?.refresh_token as string | undefined) ?? body.refreshToken;
-    if (!sid || !oldRefresh) throw new BadRequestException('No session or refresh token');
+    const oldRefresh =
+      (req.cookies?.refresh_token as string | undefined) ?? body.refreshToken;
+    if (!sid || !oldRefresh)
+      throw new BadRequestException('No session or refresh token');
 
     const payload = await this.auth.verifyRefreshToken(oldRefresh);
-    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: payload.sub }, select: { id: true, email: true, role: true } });
+    const dbUser = await this.prisma.user.findUniqueOrThrow({
+      where: { id: payload.sub },
+      select: { id: true, email: true, role: true },
+    });
+
+    const jwtUser = {
+      id: dbUser.id,
+      email: dbUser.email,
+      role: toAppRole(dbUser.role),
+    };
 
     const rotated = await this.auth.rotateSession(
       sid,
       oldRefresh,
-      user,
+      jwtUser,
       req.headers['user-agent']?.toString(),
-      (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || undefined,
+      (req.headers['x-forwarded-for'] as string) ||
+        req.socket.remoteAddress ||
+        undefined,
     );
     setRefreshCookie(res, rotated.refreshToken);
 
-    return res.json({ ok: true, access_token: rotated.accessToken, expires_in: 15 * 60 });
+    return res.json({
+      ok: true,
+      access_token: rotated.accessToken,
+      expires_in: 15 * 60,
+    });
   }
 
   // === Logout: ревок сессии + чистим куки. Это тоже мутирующая ручка → CSRF. ===

@@ -3,8 +3,9 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AppRole } from 'src/common/helpers/roles';
 
-type JwtPayload = { sub: number; email: string; role: string };
+type JwtPayload = { sub: number; email: string; role: AppRole };
 
 const REFRESH_TTL_DAYS = 30;
 
@@ -16,13 +17,12 @@ export class AuthService {
     private readonly prisma: PrismaService,
   ) {}
 
-  // ---------- JWT: access / refresh ----------
-  async signAccessToken(user: { id: number; email: string; role: string }) {
+  async signAccessToken(user: { id: number; email: string; role: AppRole }) {
     const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
-    return this.jwt.signAsync(payload); // секрет/TTL берутся из JwtModule (ACCESS)
+    return this.jwt.signAsync(payload);
   }
 
-  async signRefreshToken(user: { id: number; email: string; role: string }) {
+  async signRefreshToken(user: { id: number; email: string; role: AppRole }) {
     const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
     const refreshSecret = this.cfg.get<string>('JWT_REFRESH_SECRET')!;
     return this.jwt.signAsync(payload, { secret: refreshSecret, expiresIn: `${REFRESH_TTL_DAYS}d` });
@@ -61,7 +61,7 @@ export class AuthService {
   async rotateSession(
     sessionId: string,
     oldRefreshToken: string,
-    user: { id: number; email: string; role: string },
+    user: { id: number; email: string; role: AppRole },
     userAgent?: string,
     ip?: string,
   ) {
