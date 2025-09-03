@@ -1,14 +1,14 @@
 import { Body, Controller, Param, ParseIntPipe, Post } from '@nestjs/common';
-import { Roles } from '../common/decorators/roles.decorator';
 import { SetRoleDto } from './dto/set-role.dto';
 import { RolesService } from './roles.service';
-import { ROLE } from '../common/helpers/roles';
+import { Roles } from '@/common/decorators/roles.decorator';
+import { Role } from '@/common/domain/role.enum';  
 
 @Controller('roles')
 export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 
-  @Roles(ROLE.admin)
+  @Roles(Role.admin) 
   @Post(':userId')
   async setRole(
     @Param('userId', ParseIntPipe) userId: number,

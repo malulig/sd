@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RolesService } from './roles.service';
-import { PrismaService } from 'prisma/prisma.service';
+import { PrismaService } from './../prisma/prisma.service';
+
 
 type PrismaMock = {
   user: { update: jest.Mock };

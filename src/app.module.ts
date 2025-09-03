@@ -1,31 +1,44 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { APP_GUARD } from '@nestjs/core';
 
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { RolesGuard } from './common/guards/roles.guard';
 
 import { AuthModule } from './auth/auth.module';
-import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
-import { RotateOnMutationInterceptor } from './common/interceptors/rotate-on-mutation.interceptor';
-import { PrismaModule } from 'prisma/prisma.module';
-import { RolesGuard } from './common/guards/roles.guard';
+import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
+import { TicketsModule } from './tickets/tickets.module';
+import { CommentsModule } from './comments/comments.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    PrismaModule,
+    TypeOrmModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (cfg: ConfigService) => ({
+        type: 'mysql',
+        host: cfg.get('DB_HOST', 'localhost'),
+        port: Number(cfg.get('DB_PORT', '3306')),
+        username: cfg.get('DB_USER', 'root'),
+        password: cfg.get('DB_PASS', ''),
+        database: cfg.get('DB_NAME', 'sdit'),
+        autoLoadEntities: true,  
+        synchronize: false,      
+        
+      }),
+    }),
+
+    UsersModule,
     AuthModule,
     RolesModule,
+    TicketsModule,
+    CommentsModule,
   ],
-  controllers: [AppController],
   providers: [
-    AppService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
-    { provide: APP_INTERCEPTOR, useClass: RotateOnMutationInterceptor },
   ],
 })
 export class AppModule {}
