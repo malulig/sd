@@ -1,48 +1,67 @@
+import 'reflect-metadata';
 import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+
 import { RolesService } from './roles.service';
-import { PrismaService } from './../prisma/prisma.service';
-
-
-type PrismaMock = {
-  user: { update: jest.Mock };
-  session: { updateMany: jest.Mock };
-};
+import { User } from '@/users/entities/user.entity';
+import { Session } from '@/auth/entities/session.entity';
 
 describe('RolesService', () => {
   let service: RolesService;
-  let prisma: PrismaMock;
+
+  const userRepo: Partial<Record<keyof Repository<User>, jest.Mock>> = {
+    update: jest.fn(),
+    findOneOrFail: jest.fn(),
+  };
+
+  const sessionRepo: Partial<Record<keyof Repository<Session>, jest.Mock>> = {
+    update: jest.fn(),
+  };
 
   beforeEach(async () => {
-    prisma = {
-      user: { update: jest.fn() },
-      session: { updateMany: jest.fn() },
-    };
+    jest.resetAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RolesService,
-        { provide: PrismaService, useValue: prisma },
+        { provide: getRepositoryToken(User), useValue: userRepo },
+        { provide: getRepositoryToken(Session), useValue: sessionRepo },
       ],
     }).compile();
 
     service = module.get<RolesService>(RolesService);
   });
 
-  it('sets role and revokes sessions', async () => {
-    prisma.user.update.mockResolvedValueOnce({ id: 1, email: 'x@y.z', role: 'admin' });
-    prisma.session.updateMany.mockResolvedValueOnce({ count: 3 });
+  it('sets role and revokes active sessions', async () => {
+    userRepo.update!.mockResolvedValueOnce(undefined);
+    userRepo.findOneOrFail!.mockResolvedValueOnce({
+      id: 1,
+      email: 'x@y.z',
+      role: 'admin',
+    });
+    sessionRepo.update!.mockResolvedValueOnce({ affected: 3 });
 
     const user = await service.setRole(1, 'admin');
 
-    expect(prisma.user.update).toHaveBeenCalledWith({
+    expect(userRepo.update).toHaveBeenCalledWith({ id: 1 }, { role: 'admin' });
+
+    expect(userRepo.findOneOrFail).toHaveBeenCalledWith({
       where: { id: 1 },
-      data: { role: 'admin' },
       select: { id: true, email: true, role: true },
     });
-    expect(prisma.session.updateMany).toHaveBeenCalledWith({
-      where: { userId: 1, revokedAt: null },
-      data: { revokedAt: expect.any(Date) },
-    });
+
+    expect(sessionRepo.update).toHaveBeenCalledTimes(1);
+    const [whereArg, dataArg] = sessionRepo.update!.mock.calls[0];
+
+    expect(whereArg).toEqual(expect.objectContaining({ userId: 1 }));
+    expect(dataArg.revokedAt).toBeInstanceOf(Date);
+
     expect(user).toEqual({ id: 1, email: 'x@y.z', role: 'admin' });
+  });
+
+  it('bubbles up repository errors', async () => {
+    userRepo.update!.mockRejectedValueOnce(new Error('boom'));
+    await expect(service.setRole(2, 'manager')).rejects.toThrow('boom');
   });
 });

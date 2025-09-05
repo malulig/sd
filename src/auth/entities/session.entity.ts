@@ -1,26 +1,41 @@
-import { User } from '@/users/entities/user.entity';
 import {
-  Entity, PrimaryGeneratedColumn, Column, ManyToOne, Index, CreateDateColumn, UpdateDateColumn, JoinColumn,
+  Entity, PrimaryGeneratedColumn, Column, Index,
+  CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn,
 } from 'typeorm';
+import { User } from '@/users/entities/user.entity';
 
 @Entity('session')
-@Index(['userId'])
-@Index(['expiresAt'])
 export class Session {
-  @PrimaryGeneratedColumn('uuid') id!: string;
+  @PrimaryGeneratedColumn('uuid')
+  id!: string;
 
-  @Column() userId!: number;
+  @Index()
+  @Column({ type: 'int' })
+  userId!: number;
 
   @ManyToOne(() => User, (u) => u.sessions, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })
   user!: User;
 
-  @Column({ length: 255 }) refreshHash!: string;
-  @Column({ length: 500, nullable: true }) userAgent!: string | null;
-  @Column({ length: 100, nullable: true }) ip!: string | null;
+  @Column({ type: 'varchar', length: 255 })
+  refreshHash!: string;
 
-  @Column({ type: 'datetime' }) expiresAt!: Date;
-  @CreateDateColumn() createdAt!: Date;
-  @UpdateDateColumn() updatedAt!: Date;
-  @Column({ type: 'datetime', nullable: true }) revokedAt!: Date | null;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  userAgent!: string | null;
+
+  @Column({ type: 'varchar', length: 45, nullable: true })
+  ip!: string | null;
+
+  @Index()
+  @Column({ type: 'datetime' })
+  expiresAt!: Date;
+
+  @CreateDateColumn({ type: 'datetime' })
+  createdAt!: Date;
+
+  @UpdateDateColumn({ type: 'datetime' })
+  updatedAt!: Date;
+
+  @Column({ type: 'datetime', nullable: true })
+  revokedAt!: Date | null;
 }

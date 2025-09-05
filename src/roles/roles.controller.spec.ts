@@ -2,8 +2,8 @@ import 'reflect-metadata';
 import { Test, TestingModule } from '@nestjs/testing';
 import { RolesController } from './roles.controller';
 import { RolesService } from './roles.service';
-import { ROLES_KEY } from '../common/decorators/roles.decorator';
-import { ROLE } from '../common/helpers/roles';
+import { ROLES_KEY } from '@/common/decorators/roles.decorator';
+import { Role } from '@/common/domain/role.enum';
 
 describe('RolesController', () => {
   let controller: RolesController;
@@ -24,12 +24,12 @@ describe('RolesController', () => {
     expect(controller).toBeDefined();
   });
 
-  it('has @Roles(admin) metadata on setRole', () => {
-    const roles = Reflect.getMetadata(
+  it('has @Roles(Role.admin) metadata on setRole', () => {
+    const metadata = Reflect.getMetadata(
       ROLES_KEY,
       RolesController.prototype.setRole,
     );
-    expect(roles).toEqual([ROLE.admin]);
+    expect(metadata).toEqual([Role.admin]);
   });
 
   it('calls service.setRole and returns payload', async () => {
@@ -50,7 +50,8 @@ describe('RolesController', () => {
 
   it('bubbles up service errors', async () => {
     service.setRole.mockRejectedValueOnce(new Error('boom'));
-    await expect(controller.setRole(99, { role: 'manager' } as any))
-      .rejects.toThrow('boom');
+    await expect(
+      controller.setRole(99, { role: 'manager' } as any),
+    ).rejects.toThrow('boom');
   });
 });

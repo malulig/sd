@@ -11,23 +11,25 @@ import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { CommentsModule } from './comments/comments.module';
+import { User } from './users/entities/user.entity';
+import { Session } from './auth/entities/session.entity';
+import { Commentary } from './comments/entities/comment.entity';
+import { Ticket } from './tickets/entities/ticket.entity';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    TypeOrmModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (cfg: ConfigService) => ({
-        type: 'mysql',
-        host: cfg.get('DB_HOST', 'localhost'),
-        port: Number(cfg.get('DB_PORT', '3306')),
-        username: cfg.get('DB_USER', 'root'),
-        password: cfg.get('DB_PASS', ''),
-        database: cfg.get('DB_NAME', 'sdit'),
-        autoLoadEntities: true,  
-        synchronize: false,      
-        
-      }),
+    TypeOrmModule.forRoot({
+      type: 'mysql',
+      host: process.env.DB_HOST,
+      port: Number(process.env.DB_PORT ?? 3306),
+      username: process.env.DB_USER,
+      password: process.env.DB_PASS,
+      database: process.env.DB_NAME,
+      entities: [User, Session, Ticket, Commentary],
+      synchronize: false, 
+      migrationsRun: true, 
+      migrations: ['dist/db/migrations/*.js'],
     }),
 
     UsersModule,

@@ -49,7 +49,6 @@ export class AzureMsalService implements OnModuleInit {
 
   async buildAuthUrl(): Promise<string> {
     const state = randomBytes(32).toString('base64url');
-    // TTL 5 минут
     this.stateStore.set(state, { createdAt: Date.now() });
     setTimeout(() => this.stateStore.delete(state), 5 * 60 * 1000);
 

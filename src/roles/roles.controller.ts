@@ -1,8 +1,8 @@
 import { Body, Controller, Param, ParseIntPipe, Post } from '@nestjs/common';
 import { SetRoleDto } from './dto/set-role.dto';
 import { RolesService } from './roles.service';
-import { Roles } from '@/common/decorators/roles.decorator';
-import { Role } from '@/common/domain/role.enum';  
+import { Roles } from '../common/decorators/roles.decorator';
+import { Role } from '../common/domain/role.enum';  
 
 @Controller('roles')
 export class RolesController {

@@ -1,10 +1,15 @@
 import { Controller, Get, InternalServerErrorException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { PrismaService } from './prisma/prisma.service';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { User } from '@/users/entities/user.entity';
+import { Role } from '@/common/domain/role.enum';
 
 @Controller()
 export class AppController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(User) private readonly users: Repository<User>,
+  ) {}
 
   @Get('seed-admin')
   async seedAdmin() {
@@ -17,31 +22,40 @@ export class AppController {
       );
     }
 
-    const saltRounds = 12;
-    const passwordHash = await bcrypt.hash(plain, saltRounds);
+    const passwordHash = await bcrypt.hash(plain, 12);
 
-    const user = await this.prisma.user.upsert({
-      where: { email },
-      update: {}, 
-      create: {
+    let user = await this.users.findOne({ where: { email } });
+
+    if (!user) {
+      user = this.users.create({
         email,
         password: passwordHash,
-        role: 'admin',
+        role: Role.admin,
         displayName: 'Admin',
-      },
-      select: { id: true, email: true, role: true, displayName: true, createdAt: true },
-    });
+      });
+      user = await this.users.save(user);
+    }
 
-    return { ok: true, user };
+    return {
+      ok: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        displayName: user.displayName,
+        createdAt: user.createdAt,
+      },
+    };
   }
 
   @Get('users')
-  async users() {
-    const users = await this.prisma.user.findMany({
+  async allUsers() {
+    const users = await this.users.find({
       take: 50,
-      orderBy: { id: 'asc' },
-      select: { id: true, email: true, role: true, displayName: true, createdAt: true },
+      order: { id: 'ASC' },
+      select: ['id', 'email', 'role', 'displayName', 'createdAt'],
     });
+
     return { count: users.length, users };
   }
 }

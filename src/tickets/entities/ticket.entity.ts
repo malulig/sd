@@ -2,7 +2,7 @@ import {
   Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, Index,
   CreateDateColumn, UpdateDateColumn, JoinColumn,
 } from 'typeorm';
-import { TicketStatus } from 'src/common/domain/ticket-status.enum';
+import { TicketStatus } from '@/common/domain/ticket-status.enum';
 import { User } from '@/users/entities/user.entity';
 import { Commentary } from '@/comments/entities/comment.entity';
 
@@ -13,8 +13,6 @@ import { Commentary } from '@/comments/entities/comment.entity';
 export class Ticket {
   @PrimaryGeneratedColumn() id!: number;
 
-  @Column({ length: 500 }) title!: string;
-  @Column({ type: 'text', nullable: true }) body!: string | null;
   @Column({ type: 'enum', enum: TicketStatus, default: TicketStatus.OPEN })
   status!: TicketStatus;
 
@@ -28,7 +26,13 @@ export class Ticket {
   @JoinColumn({ name: 'assigneeId' })
   assignee!: User | null;
 
-  @OneToMany(() => Commentary, (c) => c.ticket) comments!: Comment[];
+  @Column({ type: 'varchar', length: 255 })
+title!: string;
+
+@Column({ type: 'text', nullable: true })
+body!: string | null;
+
+  @OneToMany(() => Commentary, (c) => c.ticket) comments!: Commentary[];
 
   @CreateDateColumn() createdAt!: Date;
   @UpdateDateColumn() updatedAt!: Date;

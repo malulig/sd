@@ -4,11 +4,11 @@ import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { JwtStrategy } from 'src/common/strategy/jwt.strategy';
-import { User } from '@/users/entities/user.entity';
+import { User } from '../users/entities/user.entity';
 import { Session } from './entities/session.entity';
-import { AzureMsalService } from '@/azure/azure-msal.service';
-import { AuthController } from './auth.service';
-import { AuthService } from './auth.controller';
+import { AzureMsalService } from '../azure/azure-msal.service';
+import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
 
 @Module({
   imports: [

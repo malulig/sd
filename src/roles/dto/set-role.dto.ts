@@ -1,7 +1,7 @@
 import { IsEnum } from 'class-validator';
-import { AppRole, ROLE } from '../../common/helpers/roles';
+import { Role, AppRole } from '@/common/domain/role.enum';
 
 export class SetRoleDto {
-  @IsEnum(ROLE) 
+  @IsEnum(Role)
   role!: AppRole;
 }

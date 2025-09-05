@@ -3,7 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
-import { AppRole } from '../helpers/roles';
+import type { AppRole } from '@/common/domain/role.enum';
 
 export interface AccessJwtPayload {
   sub: number;
@@ -23,8 +23,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(cfg: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
-        bodyAccessTokenExtractor,                     
-        ExtractJwt.fromAuthHeaderAsBearerToken(),     
+        bodyAccessTokenExtractor,                     // из тела (для форм/мутирующих запросов)
+        ExtractJwt.fromAuthHeaderAsBearerToken(),     // стандартный Bearer
       ]),
       secretOrKey: cfg.get<string>('JWT_ACCESS_SECRET')!,
       ignoreExpiration: false,
