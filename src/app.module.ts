@@ -27,8 +27,8 @@ import { Ticket } from './tickets/entities/ticket.entity';
       password: process.env.DB_PASS,
       database: process.env.DB_NAME,
       entities: [User, Session, Ticket, Commentary],
-      synchronize: false, 
-      migrationsRun: true, 
+      synchronize: true, 
+      migrationsRun: false, 
       migrations: ['dist/db/migrations/*.js'],
     }),
 
