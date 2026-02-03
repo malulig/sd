@@ -2,9 +2,13 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { PrismaService } from '../../prisma/prisma.service';
+import { InjectRepository } from '@nestjs/typeorm';
+import { IsNull, MoreThan, Repository } from 'typeorm';
 
-type JwtPayload = { sub: number; email: string; role: string };
+import type { AppRole } from '../common/domain/role.enum';
+import { Session } from '../auth/entities/session.entity';
+
+type JwtPayload = { sub: number; email: string; role: AppRole };
 
 const REFRESH_TTL_DAYS = 30;
 
@@ -13,19 +17,21 @@ export class AuthService {
   constructor(
     private readonly jwt: JwtService,
     private readonly cfg: ConfigService,
-    private readonly prisma: PrismaService,
+    @InjectRepository(Session) private readonly sessions: Repository<Session>,
   ) {}
 
-  // ---------- JWT: access / refresh ----------
-  async signAccessToken(user: { id: number; email: string; role: string }) {
+  async signAccessToken(user: { id: number; email: string; role: AppRole }) {
     const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
-    return this.jwt.signAsync(payload); // секрет/TTL берутся из JwtModule (ACCESS)
+    return this.jwt.signAsync(payload); // секрет/ttl берутся из JwtModule
   }
 
-  async signRefreshToken(user: { id: number; email: string; role: string }) {
+  async signRefreshToken(user: { id: number; email: string; role: AppRole }) {
     const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
     const refreshSecret = this.cfg.get<string>('JWT_REFRESH_SECRET')!;
-    return this.jwt.signAsync(payload, { secret: refreshSecret, expiresIn: `${REFRESH_TTL_DAYS}d` });
+    return this.jwt.signAsync(payload, {
+      secret: refreshSecret,
+      expiresIn: `${REFRESH_TTL_DAYS}d`,
+    });
   }
 
   async verifyRefreshToken(token: string) {
@@ -37,35 +43,34 @@ export class AuthService {
     return new Date(Date.now() + REFRESH_TTL_DAYS * 24 * 60 * 60 * 1000);
   }
 
-  async createSession(userId: number, refreshToken: string, userAgent?: string, ip?: string) {
+  async createSession(
+    userId: number,
+    refreshToken: string,
+    userAgent?: string,
+    ip?: string,
+  ) {
     const refreshHash = await bcrypt.hash(refreshToken, 12);
-    const session = await this.prisma.session.create({
-      data: {
-        userId,
-        refreshHash,
-        userAgent,
-        ip,
-        expiresAt: this.sessionExpiryDate(),
-      },
-      select: { id: true },
+    const entity = this.sessions.create({
+      userId,
+      refreshHash,
+      userAgent: userAgent ?? null,
+      ip: ip ?? null,
+      expiresAt: this.sessionExpiryDate(),
     });
-    return session.id;
-  }
-
-  private async findActiveSession(sessionId: string) {
-    return this.prisma.session.findFirst({
-      where: { id: sessionId, revokedAt: null, expiresAt: { gt: new Date() } },
-    });
+    const saved = await this.sessions.save(entity);
+    return saved.id;
   }
 
   async rotateSession(
     sessionId: string,
     oldRefreshToken: string,
-    user: { id: number; email: string; role: string },
+    user: { id: number; email: string; role: AppRole },
     userAgent?: string,
     ip?: string,
   ) {
-    const session = await this.findActiveSession(sessionId);
+    const session = await this.sessions.findOne({
+      where: { id: sessionId, revokedAt: IsNull(), expiresAt: MoreThan(new Date()) },
+    });
     if (!session) throw new UnauthorizedException('Session not found or expired');
 
     const match = await bcrypt.compare(oldRefreshToken, session.refreshHash);
@@ -73,25 +78,20 @@ export class AuthService {
 
     const accessToken = await this.signAccessToken(user);
     const newRefresh = await this.signRefreshToken(user);
-    const newHash = await bcrypt.hash(newRefresh, 12);
 
-    await this.prisma.session.update({
-      where: { id: sessionId },
-      data: {
-        refreshHash: newHash,
-        userAgent,
-        ip,
-        expiresAt: this.sessionExpiryDate(),
-      },
-    });
+    session.refreshHash = await bcrypt.hash(newRefresh, 12);
+    session.userAgent = userAgent ?? null;
+    session.ip = ip ?? null;
+    session.expiresAt = this.sessionExpiryDate();
+    await this.sessions.save(session);
 
     return { accessToken, refreshToken: newRefresh };
   }
 
   async revokeSession(sessionId: string) {
-    await this.prisma.session.updateMany({
-      where: { id: sessionId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
+    await this.sessions.update(
+      { id: sessionId, revokedAt: IsNull() },
+      { revokedAt: new Date() },
+    );
   }
 }

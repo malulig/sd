@@ -7,13 +7,18 @@ async function bootstrap() {
   app.enableShutdownHooks();
   app.use(cookieParser());
 
-  const origins = process.env.CLIENT_URL?.split(',').map((s) => s.trim());
-  app.enableCors({
-    origin: origins ?? true,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  });
+  const origins = process.env.CLIENT_URL;
+app.enableCors({
+  origin: origins ?? true,
+  credentials: true,
+  methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-CSRF-Token',
+    'X-XSRF-Token',
+  ],
+});
 
   await app.listen(process.env.PORT ?? 3000);
   console.log(`Application is running on: ${await app.getUrl()}`);

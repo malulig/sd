@@ -1,17 +1,18 @@
 import { Module } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-
-import { PrismaModule } from 'prisma/prisma.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { JwtStrategy } from 'src/common/strategy/jwt.strategy';
+import { User } from '../users/entities/user.entity';
+import { Session } from './entities/session.entity';
+import { AzureMsalService } from '../azure/azure-msal.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { AzureMsalService } from 'src/azure/azure-msal.service';
 
 @Module({
   imports: [
-    PrismaModule,
+    ConfigModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (cfg: ConfigService) => ({
@@ -19,9 +20,10 @@ import { AzureMsalService } from 'src/azure/azure-msal.service';
         signOptions: { expiresIn: '15m' },
       }),
     }),
+    TypeOrmModule.forFeature([User, Session]),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AzureMsalService, JwtStrategy],
-  exports: [JwtModule, AuthService],
+  providers: [JwtStrategy, AzureMsalService, AuthService],
+  exports: [JwtModule],
 })
 export class AuthModule {}
